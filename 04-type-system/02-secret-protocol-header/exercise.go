@@ -6,16 +6,18 @@ package secretprotocolheader
 // createPublishFixHeader constructs an octet (8-bit long byte) based on its three arguments and the fix QoS setting.
 func createPublishFixHeader(isFirstAttempt bool, isBroadcasted bool, isSecure bool) byte {
 	// INSERT YOUR CODE HERE
-	QoS := byte(0b10)
+	QoS := byte(0b01)
 
 	var header byte
-	header |= QoS << 2
+	header |= 0b010 << 5
 
 	if isFirstAttempt {
 		header |= 1 << 4
 	} else {
 		header |= 0 << 4
 	}
+
+	header |= QoS << 2
 
 	if isBroadcasted {
 		header |= 1 << 1
@@ -28,8 +30,6 @@ func createPublishFixHeader(isFirstAttempt bool, isBroadcasted bool, isSecure bo
 	} else {
 		header |= 0 << 0
 	}
-
-	header |= byte(0b010) << 5
 
 	return header
 }
