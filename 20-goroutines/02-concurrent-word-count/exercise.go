@@ -1,5 +1,10 @@
 package wordcount
 
+import (
+	"strings"
+	"time"
+)
+
 // DO NOT REMOVE THIS COMMENT
 //go:generate go run ../../exercises-cli.go -student-id=$STUDENT_ID generate
 
@@ -9,17 +14,26 @@ func CountWords(words []string) map[string]int {
 		return map[string]int{}
 	}
 
-	var returnmap map[string]int
-	countchan := make(chan int)
+	wordCountChan := make(map[string]int)
+	wordChan := make(chan string)
+	done := make(chan bool)
+	defer close(wordChan)
 
-	for i, val1 := range words {
-		for j, val2 := range words {
-			go func(word string, returnmap map[string]int) {
-				defer close(countchan)
-				if words[i] == words[j] {
-					val1++
-				}
-			}(words[i], returnmap)
+	go func() {
+		for i := range wordChan {
+			wordCountChan[i]++
 		}
+		done <- true
+	}()
+
+	for _, str := range words {
+		go func(s string) {
+			wordsFields := strings.Fields(s)
+			for _, word := range wordsFields {
+				wordChan <- word
+			}
+		}(str)
 	}
+	time.Sleep(40 * time.Millisecond)
+	return wordCountChan
 }
