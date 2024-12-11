@@ -9,7 +9,7 @@ import (
 
 // INSERT YOUR CODE HERE
 func printBool(b bool) string {
-	return fmt.Sprintf("variable of type boolean and value ", b)
+	return fmt.Sprintf("variable of type boolean and value %v", b)
 }
 
 func printInt(i int) string {
@@ -17,11 +17,11 @@ func printInt(i int) string {
 }
 
 func printHex(i int) string {
-	return fmt.Sprintf("variable of type integer in hexadecimal form and value %X", i)
+	return fmt.Sprintf("variable of type integer in hexadecimal form and value %x", i)
 }
 
 func printFloat(f float64) string {
-	return fmt.Sprintf("ariable of type float and value %.2f", f)
+	return fmt.Sprintf("variable of type float and value %.2f", f)
 }
 
 func printString(s string) string {

@@ -22,18 +22,15 @@ func contain(reader io.Reader, word string) bool {
 	}
 	text := textBuilder.String()
 
-	// Remove punctuation and convert to lowercase
 	re := regexp.MustCompile(`[^a-zA-Z0-9 ]+`)
 	cleanText := re.ReplaceAllString(text, "")
 	cleanText = strings.ToLower(cleanText)
 
-	// Split text into words and count occurrences of "alive"
 	wordCounts := make(map[string]int)
 	words := strings.Fields(cleanText)
 	for _, word := range words {
 		wordCounts[word]++
 	}
 
-	// Check if "alive" appears more than once
 	return wordCounts["alive"] > 1
 }

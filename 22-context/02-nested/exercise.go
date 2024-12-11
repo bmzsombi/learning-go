@@ -11,23 +11,21 @@ import (
 // INSERT YOUR CODE HERE
 func SubTask(ctx context.Context) (result string, err error) {
 	select {
-	case <-ctx.Done(): // Context canceled before completing the task
+	case <-ctx.Done():
 		return "", ctx.Err()
-	case <-time.After(200 * time.Millisecond): // Simulate long-running operation
+	case <-time.After(200 * time.Millisecond):
 		return "Subtask completed successfully", nil
 	}
 }
 
 // StartTask starts the main task and handles its lifecycle.
 func StartTask(ctx context.Context) (result string, err error) {
-	// Create a new context with a 1-second timeout
 	subCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
-	defer cancel() // Ensure proper cleanup of the derived context
+	defer cancel()
 
-	resultChan := make(chan string) // Channel to receive results from SubTask
-	errorChan := make(chan error)   // Channel to receive errors from SubTask
+	resultChan := make(chan string)
+	errorChan := make(chan error)
 
-	// Start SubTask in a new goroutine
 	go func() {
 		defer close(resultChan)
 		defer close(errorChan)
@@ -40,11 +38,11 @@ func StartTask(ctx context.Context) (result string, err error) {
 	}()
 
 	select {
-	case <-ctx.Done(): // Main context canceled
+	case <-ctx.Done():
 		return "", ctx.Err()
-	case err := <-errorChan: // SubTask returned an error
+	case err := <-errorChan:
 		return "", err
-	case res := <-resultChan: // SubTask completed successfully
+	case res := <-resultChan:
 		return "Main task status: " + res, nil
 	}
 }

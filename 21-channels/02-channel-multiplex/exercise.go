@@ -9,25 +9,30 @@ import (
 
 // INSERT YOUR CODE HERE
 func channelMultiplex(ctx context.Context, inputs []chan any) chan any {
-	output := make(chan any) // Output channel
+	output := make(chan any)
 
 	go func() {
-		defer close(output) // Ensure the output channel is closed when done
+		defer close(output)
+
+		var done = make(chan struct{}, len(inputs))
 
 		for _, ch := range inputs {
-			// Launch a goroutine to read from each input channel
-			go func(c chan any) {
+			ch := ch
+			go func(ch chan any) {
 				for {
 					select {
-					case <-ctx.Done(): // Context cancellation
+					case <-ctx.Done():
+						done <- struct{}{}
 						return
-					case val, ok := <-c: // Read from the input channel
-						if !ok { // Input channel is closed
+					case val, ok := <-ch:
+						if !ok {
+							done <- struct{}{}
 							return
 						}
 						select {
-						case output <- val: // Send the value to the output channel
-						case <-ctx.Done(): // Context cancellation
+						case output <- val:
+						case <-ctx.Done():
+							done <- struct{}{}
 							return
 						}
 					}
@@ -35,8 +40,9 @@ func channelMultiplex(ctx context.Context, inputs []chan any) chan any {
 			}(ch)
 		}
 
-		// Wait for the context to be canceled to terminate all goroutines
-		<-ctx.Done()
+		for range inputs {
+			<-done
+		}
 	}()
 
 	return output
