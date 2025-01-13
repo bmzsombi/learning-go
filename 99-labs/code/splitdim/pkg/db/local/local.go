@@ -2,6 +2,7 @@ package local
 
 import (
 	"errors"
+	"math"
 	"sort"
 	"splitdim/pkg/api"
 	"sync"
@@ -64,26 +65,50 @@ func (db *localDB) Clear() ([]api.Transfer, error) {
 	//defer db.mu.Unlock()
 	var accountDebts int
 	for _, val := range db.accounts {
-		val += val
+		accountDebts += val
 	}
 	if accountDebts != 0 {
 		accountBalanceError := errors.New("account balance is inconsistent")
 		return nil, accountBalanceError
 	}
-	tempAcc := db.accounts
+	//tempAcc := db.accounts
+	tempAcc := make(map[string]int)
+	for key, value := range db.accounts {
+		tempAcc[key] = value
+	}
 	db.mu.Unlock()
 	transfers := make([]api.Transfer, 0)
-	for sender, balance := range tempAcc {
-		if balance < 0 {
-			for receiver, receiverBalance := range tempAcc {
-				if receiverBalance > 0 {
-					tranferAmount := 
+	for {
+		cleared := true
+		for sender, balance := range tempAcc {
+			if balance < 0 {
+				for receiver, receiverBalance := range tempAcc {
+					if receiverBalance > 0 {
+						transferAmount := int(math.Min(float64(-balance), float64(receiverBalance)))
+						transfers = append(transfers, api.Transfer{
+							Sender:   sender,
+							Receiver: receiver,
+							Amount:   transferAmount,
+						})
+
+						tempAcc[sender] += transferAmount
+						tempAcc[receiver] -= transferAmount
+
+						cleared = false
+
+						if tempAcc[sender] == 0 {
+							break
+						}
+					}
 				}
 			}
 		}
+		if cleared {
+			break
+		}
 	}
 
-	return nil, nil
+	return transfers, nil
 }
 func (db *localDB) Reset() error {
 	db.mu.Lock()
