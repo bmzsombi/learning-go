@@ -78,33 +78,25 @@ func (db *localDB) Clear() ([]api.Transfer, error) {
 	}
 	db.mu.Unlock()
 	transfers := make([]api.Transfer, 0)
-	for {
-		cleared := true
-		for sender, balance := range tempAcc {
-			if balance < 0 {
-				for receiver, receiverBalance := range tempAcc {
-					if receiverBalance > 0 {
-						transferAmount := int(math.Min(float64(-balance), float64(receiverBalance)))
-						transfers = append(transfers, api.Transfer{
-							Sender:   sender,
-							Receiver: receiver,
-							Amount:   transferAmount,
-						})
-
-						tempAcc[sender] += transferAmount
-						tempAcc[receiver] -= transferAmount
-
-						cleared = false
-
-						if tempAcc[sender] == 0 {
-							break
-						}
-					}
-				}
-			}
+	for sender, balance := range tempAcc {
+		if balance >= 0 {
+			continue
 		}
-		if cleared {
-			break
+
+		for receiver, receiverBalance := range tempAcc {
+			if receiverBalance <= 0 {
+				continue
+			}
+
+			transferAmount := int(math.Min(float64(-balance), float64(receiverBalance)))
+			transfers = append(transfers, api.Transfer{Sender: sender, Receiver: receiver, Amount: transferAmount})
+
+			tempAcc[sender] += transferAmount
+			tempAcc[receiver] -= transferAmount
+
+			if tempAcc[sender] == 0 {
+				break
+			}
 		}
 	}
 

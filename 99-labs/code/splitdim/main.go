@@ -6,11 +6,17 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"splitdim/pkg/api"
+	"splitdim/pkg/db/kvstore"
 	"splitdim/pkg/db/local"
 )
 
-var db api.DataLayer
+// KVStoreMode defines the data layer mode (local/redis/kvstore).
+var KVStoreMode = "local"
+
+// KVStoreAddr stores the key-value store address as a DNS domain name or IP address.
+var KVStoreAddr = "localhost:8001"
 
 // TransferHandler is a HTTP handler that implements the money transfer API.
 func TransferHandler(w http.ResponseWriter, r *http.Request) {
@@ -108,11 +114,31 @@ func ResetHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+var db api.DataLayer
+
 func main() {
 	// Set the default logger to a fancier log format.
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	db = local.NewDataLayer()
+	if os.Getenv("KVSTORE_MODE") != "" {
+		KVStoreMode = os.Getenv("KVSTORE_MODE")
+	}
+	if os.Getenv("KVSTORE_ADDR") != "" {
+		KVStoreAddr = os.Getenv("KVSTORE_ADDR")
+	}
+
+	switch KVStoreMode {
+	case "kvstore":
+		log.Printf("Using the kvstore datalayer using at %q", KVStoreAddr)
+		db = kvstore.NewDataLayer(KVStoreAddr)
+	case "local":
+		fallthrough
+	default:
+		log.Println("Using the local datalayer")
+		db = local.NewDataLayer()
+	}
+
+	//db = local.NewDataLayer()
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "static/index.html")

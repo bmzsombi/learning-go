@@ -20,5 +20,8 @@ FROM scratch
 # Copy the binary from the host.
 COPY --from=build /splitdim .
 
+# Copy the static files from the source
+COPY static /static
+
 # Tell Docker to execute this command on a `docker run`.
 CMD ["/splitdim"]
