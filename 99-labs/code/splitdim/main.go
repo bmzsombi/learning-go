@@ -1,15 +1,20 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"splitdim/pkg/api"
 	"splitdim/pkg/db/kvstore"
 	"splitdim/pkg/db/local"
+	"syscall"
+	"time"
 )
 
 // KVStoreMode defines the data layer mode (local/redis/kvstore).
@@ -114,11 +119,34 @@ func ResetHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func HealthHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-type", "application/json")
+	json, err := json.Marshal("ok")
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.Write(json)
+	w.WriteHeader(http.StatusOK)
+}
+
 var db api.DataLayer
 
 func main() {
 	// Set the default logger to a fancier log format.
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	kvstoreModeFlag := flag.String("mode", KVStoreMode, "Mode of the KV Store")
+	kvstoreAddrFlag := flag.String("addr", KVStoreAddr, "Address of the KV Store")
+
+	flag.Parse()
+
+	KVStoreMode = *kvstoreModeFlag
+	KVStoreAddr = *kvstoreAddrFlag
 
 	if os.Getenv("KVSTORE_MODE") != "" {
 		KVStoreMode = os.Getenv("KVSTORE_MODE")
@@ -148,7 +176,29 @@ func main() {
 	http.HandleFunc("/api/accounts", AccountListHandler)
 	http.HandleFunc("/api/clear", ClearHandler)
 	http.HandleFunc("/api/reset", ResetHandler)
+	http.HandleFunc("/healthz", HealthHandler)
 
 	log.Println("Server listening on http://:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
+
+	s := &http.Server{Addr: ":8080"}
+
+	go func() {
+		err := s.ListenAndServe()
+		if err != nil && err != http.ErrServerClosed {
+			log.Fatalf("server fail!!! %v", err)
+		}
+	}()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	<-sigChan
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	if err := s.Shutdown(ctx); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
+	}
+
 }

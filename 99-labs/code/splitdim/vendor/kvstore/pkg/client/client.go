@@ -62,6 +62,7 @@ func (c *client) List() ([]api.VersionedKeyValue, error) {
 	}
 	var values []api.VersionedKeyValue
 	err = json.NewDecoder(response.Body).Decode(&values)
+	defer response.Body.Close()
 	if err != nil {
 		return []api.VersionedKeyValue{}, fmt.Errorf("failed to decode response: %w", err)
 	}

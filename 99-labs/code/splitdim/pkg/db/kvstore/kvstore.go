@@ -3,7 +3,9 @@ package kvstore
 import (
 	"fmt"
 	"math"
+	"resilient"
 	"strconv"
+	"time"
 
 	clientapi "kvstore/pkg/api"
 	"kvstore/pkg/client"
@@ -18,6 +20,10 @@ type kvstore struct {
 // NewDataLayer creates a new database of scores.
 func NewDataLayer(kvStoreAddr string) api.DataLayer {
 	return &kvstore{Client: client.NewClient(kvStoreAddr)}
+}
+
+func (db *kvstore) setBalanceForUser(user string, amount int) resilient.Closure {
+	return func() error { return db.setBalance(user, amount) }
 }
 
 func (db *kvstore) setBalance(user string, amount int) error {
@@ -39,18 +45,42 @@ func (db *kvstore) Transfer(t api.Transfer) error {
 	if t.Sender == "" || t.Receiver == "" || t.Sender == t.Receiver {
 		return fmt.Errorf("invalid transfer")
 	}
-	for {
-		err := db.setBalance(t.Sender, -t.Amount)
-		if err == nil {
-			break
-		}
+
+	var defaultBackoff = resilient.Backoff{
+		Base:      150 * time.Millisecond,
+		Cap:       2 * time.Second,
+		Jitter:    3,
+		NumTrials: 6,
 	}
-	for {
-		err := db.setBalance(t.Receiver, -t.Amount)
-		if err == nil {
-			break
-		}
+
+	senderClosure := db.setBalanceForUser(t.Sender, t.Amount)
+	decoreatedIncreaseClosure := resilient.WithRetry(senderClosure, defaultBackoff)
+	err := decoreatedIncreaseClosure()
+	if err != nil {
+		return fmt.Errorf("%w", err)
 	}
+
+	receiverClosure := db.setBalanceForUser(t.Receiver, -t.Amount)
+	decoratedReceiverClosure := resilient.WithRetry(receiverClosure, defaultBackoff)
+	err = decoratedReceiverClosure()
+	if err != nil {
+		senderClosure2 := db.setBalanceForUser(t.Sender, -t.Amount)
+		decoratedSenderClosure := resilient.WithRetry(senderClosure2, defaultBackoff)
+		err = decoratedSenderClosure()
+		return fmt.Errorf("%w", err)
+	} /*
+		for {
+			err := db.setBalance(t.Sender, -t.Amount)
+			if err == nil {
+				break
+			}
+		}
+		for {
+			err := db.setBalance(t.Receiver, -t.Amount)
+			if err == nil {
+				break
+			}
+		}*/
 	return nil
 }
 
@@ -126,10 +156,10 @@ func (db *kvstore) Clear() ([]api.Transfer, error) {
 	}
 
 	tempAcc := make(map[string]int)
-	sum := 0
+	//sum := 0
 	for _, account := range accounts {
 		balance, _ := strconv.Atoi(account.Value)
-		sum += balance
+		tempAcc[account.Key] += balance
 	}
 	transfers := make([]api.Transfer, 0)
 	for sender, balance := range tempAcc {

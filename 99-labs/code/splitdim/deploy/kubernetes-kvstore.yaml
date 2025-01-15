@@ -13,16 +13,35 @@ spec:
       labels:
         app: splitdim
     spec:
+      terminationGracePeriodSeconds: 600
       containers:
       - name: splitdim
         image: localhost/splitdim:latest
+        imagePullPolicy: IfNotPresent
         ports:
           - containerPort: 8080
+        resources:
+          requests:
+            cpu: "100m"
+          limits:
+            cpu: "100m"
         env:
         - name: KVSTORE_MODE
-          value: kvstore
+          valueFrom:
+            configMapKeyRef:
+              name: splitdim-config
+              key: kvstoreMode
         - name: KVSTORE_ADDR
-          value: "kvstore.default:8081"
+          valueFrom:
+            configMapKeyRef:
+              name: splitdim-config
+              key: kvstoreAddr
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 3
+          periodSeconds: 2
 ---
 apiVersion: v1
 kind: Service
